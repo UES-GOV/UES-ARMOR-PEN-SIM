@@ -3,81 +3,264 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UES Armor Penetration Simulator</title>
+    <title>Tank Builder</title>
     <style>
-        #tank-container {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 20px;
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
         }
-        #build-menu {
-            border: 1px solid #ccc;
-            padding: 10px;
-            height: 500px;
+        #toolbar {
+            display: flex;
+            background-color: #333;
+            color: white;
+            padding: 5px;
         }
-        #tank-canvas {
+        #toolbar button {
+            margin: 0 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+            background-color: #444;
+            color: white;
+            border: none;
+        }
+        #toolbar button:hover {
+            background-color: #555;
+        }
+        #canvas-container {
             position: relative;
-            width: 500px;
-            height: 500px;
-            background-color: #ddd;
+            width: 100%;
+            height: calc(100vh - 40px);
+            background-color: #121212;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #121212;
             border: 1px solid #333;
         }
-        .component {
+        .info-box {
             position: absolute;
-            width: 50px;
-            height: 50px;
-            background-color: #444;
-            cursor: pointer;
+            padding: 5px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
         }
-        .selected {
-            background-color: yellow;
+        .light-mode {
+            background-color: #f4f4f4;
+            color: black;
+        }
+        .light-mode canvas {
+            background-color: #fff;
         }
     </style>
 </head>
 <body>
-    <div id="tank-container">
-        <div id="build-menu">
-            <h3>Tank Components</h3>
-            <button onclick="addComponent('armor')">Add Armor</button>
-            <button onclick="addComponent('cannon')">Add Cannon</button>
-            <button onclick="addComponent('seat')">Add Seat</button>
-            <!-- You can add more buttons for other components -->
-        </div>
-
-        <div id="tank-canvas" onclick="placeComponent(event)">
-            <!-- Tank components will appear here -->
-        </div>
+    <div id="toolbar">
+        <button id="drawArmor">Draw Armor</button>
+        <button id="addEngine">Add Engine</button>
+        <button id="addTurretRing">Add Turret Ring</button>
+        <button id="undo">Undo</button>
+        <button id="toggleMode">Light Mode</button>
     </div>
-
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
     <script>
-        let selectedComponent = null;
+        const canvas = document.getElementById('canvas');
+        const container = document.getElementById('canvas-container');
+        const ctx = canvas.getContext('2d');
 
-        function addComponent(type) {
-            selectedComponent = type;
-            alert(`Selected ${type}`);
+        // Set up canvas dimensions
+        canvas.width = container.offsetWidth;
+        canvas.height = container.offsetHeight;
+
+        // State variables
+        let mode = 'drawArmor'; // Current tool: drawArmor, addEngine, addTurretRing
+        let isDrawing = false;
+        let isResizing = false;
+        let isRotating = false;
+        let armorPieces = [];
+        let components = [];
+        let darkMode = true;
+        let currentBlock = null;
+        let resizingEdge = null;
+        let initialMouseAngle = 0; // Starting angle for rotation
+        let initialMouseX = 0;
+        let initialMouseY = 0;
+
+        // Event listeners
+        canvas.addEventListener('mousedown', startAction);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', stopAction);
+        canvas.addEventListener('mouseleave', stopAction);
+
+        document.getElementById('drawArmor').addEventListener('click', () => mode = 'drawArmor');
+        document.getElementById('addEngine').addEventListener('click', () => mode = 'addEngine');
+        document.getElementById('addTurretRing').addEventListener('click', () => mode = 'addTurretRing');
+        document.getElementById('undo').addEventListener('click', undoLastAction);
+        document.getElementById('toggleMode').addEventListener('click', toggleMode);
+
+        function startAction(e) {
+            const { x, y } = getMousePosition(e);
+
+            if (mode === 'drawArmor' && !currentBlock) {
+                // Only create a new block if no block is selected
+                armorPieces.push({ x, y, width: 0, height: 0, thickness: 0, angle: 0 });
+                currentBlock = armorPieces[armorPieces.length - 1];
+                isDrawing = true;
+            } else if (mode === 'addEngine' && !currentBlock) {
+                components.push({ type: 'engine', x: x - 50, y: y - 25, width: 100, height: 50 });
+                currentBlock = components[components.length - 1];
+            } else if (mode === 'addTurretRing' && !currentBlock) {
+                components.push({ type: 'turretRing', x: x - 25, y: y - 25, width: 50, height: 50 });
+                currentBlock = components[components.length - 1];
+            } else if ((mode === 'resize' || mode === 'rotate') && !currentBlock) {
+                // If not in drawing mode and no block selected, prevent spawning a new block
+                currentBlock = detectHoveredBlock(x, y);
+                if (currentBlock) {
+                    if (mode === 'rotate') {
+                        initialMouseX = x;
+                        initialMouseY = y;
+                        initialMouseAngle = currentBlock.angle; // Store the current angle to adjust from
+                        isRotating = true;
+                    }
+                    else if (mode === 'resize') {
+                        resizingEdge = getResizingEdge(x, y, currentBlock);
+                        isResizing = true;
+                    }
+                }
+            }
+            redrawCanvas();
         }
 
-        function placeComponent(event) {
-            if (!selectedComponent) return;
+        function handleMouseMove(e) {
+            const { x, y } = getMousePosition(e);
 
-            const x = event.offsetX;
-            const y = event.offsetY;
-            const component = document.createElement('div');
-            component.classList.add('component');
-            component.style.left = `${x - 25}px`;  // Center the component on the click
-            component.style.top = `${y - 25}px`;
-
-            // Set component colors based on the type
-            if (selectedComponent === 'armor') {
-                component.style.backgroundColor = 'blue';
-            } else if (selectedComponent === 'cannon') {
-                component.style.backgroundColor = 'red';
-            } else if (selectedComponent === 'seat') {
-                component.style.backgroundColor = 'green';
+            if (isDrawing && mode === 'drawArmor') {
+                const dx = x - currentBlock.x;
+                const dy = y - currentBlock.y;
+                currentBlock.width = dx;
+                currentBlock.height = dy;
+                currentBlock.thickness = Math.round(Math.sqrt(dx * dx + dy * dy) / 10); // Scale thickness
+            } else if (isResizing && currentBlock) {
+                resizeBlock(x, y);
+            } else if (isRotating && currentBlock) {
+                rotateBlock(x, y);
             }
+            redrawCanvas();
+        }
 
-            document.getElementById('tank-canvas').appendChild(component);
-            selectedComponent = null;  // Deselect after placing
+        function stopAction() {
+            isDrawing = false;
+            isResizing = false;
+            isRotating = false;
+            currentBlock = null;
+            resizingEdge = null;
+        }
+
+        function undoLastAction() {
+            if (mode === 'drawArmor' && armorPieces.length > 0) {
+                armorPieces.pop();
+            } else if ((mode === 'addEngine' || mode === 'addTurretRing') && components.length > 0) {
+                components.pop();
+            }
+            redrawCanvas();
+        }
+
+        function toggleMode() {
+            darkMode = !darkMode;
+            document.body.classList.toggle('light-mode', !darkMode);
+            redrawCanvas();
+        }
+
+        function getMousePosition(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+            };
+        }
+
+        function detectHoveredBlock(x, y) {
+            // Detects if the mouse is hovering over a rotated block
+            for (let i = armorPieces.length - 1; i >= 0; i--) {
+                const block = armorPieces[i];
+                const cx = block.x + block.width / 2;
+                const cy = block.y + block.height / 2;
+                const dx = x - cx;
+                const dy = y - cy;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const angle = block.angle * Math.PI / 180;
+
+                // Rotate the mouse position to check if it intersects the rotated block
+                const rotatedX = Math.cos(angle) * dx + Math.sin(angle) * dy;
+                const rotatedY = -Math.sin(angle) * dx + Math.cos(angle) * dy;
+
+                if (rotatedX >= -block.width / 2 && rotatedX <= block.width / 2 &&
+                    rotatedY >= -block.height / 2 && rotatedY <= block.height / 2) {
+                    return block;
+                }
+            }
+            return null;
+        }
+
+        function getResizingEdge(x, y, block) {
+            const padding = 10; // distance to the edge for resizing
+            if (x >= block.x + block.width - padding && x <= block.x + block.width + padding) {
+                return 'right';
+            }
+            if (y >= block.y + block.height - padding && y <= block.y + block.height + padding) {
+                return 'bottom';
+            }
+            return null;
+        }
+
+        function rotateBlock(x, y) {
+            const centerX = currentBlock.x + currentBlock.width / 2;
+            const centerY = currentBlock.y + currentBlock.height / 2;
+            const dx = x - centerX;
+            const dy = y - centerY;
+            const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+            currentBlock.angle = angle + initialMouseAngle;
+        }
+
+        function resizeBlock(x, y) {
+            if (resizingEdge === 'right') {
+                currentBlock.width = x - currentBlock.x;
+            } else if (resizingEdge === 'bottom') {
+                currentBlock.height = y - currentBlock.y;
+            }
+        }
+
+        function redrawCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBlocks();
+            drawComponents();
+        }
+
+        function drawBlocks() {
+            armorPieces.forEach(piece => {
+                ctx.save();
+                ctx.translate(piece.x + piece.width / 2, piece.y + piece.height / 2);
+                ctx.rotate(piece.angle * Math.PI / 180);
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                ctx.fillRect(-piece.width / 2, -piece.height / 2, piece.width, piece.height);
+                ctx.restore();
+
+                // Display angle and thickness info
+                ctx.fillStyle = 'white';
+                ctx.font = '12px Arial';
+                ctx.fillText(`Thickness: ${piece.thickness}mm`, piece.x + piece.width / 2, piece.y + piece.height / 2 - 10);
+                ctx.fillText(`${piece.angle.toFixed(1)}°`, piece.x + piece.width / 2, piece.y + piece.height / 2 + 10);
+            });
+        }
+
+        function drawComponents() {
+            components.forEach(component => {
+                ctx.fillStyle = component.type === 'engine' ? 'gray' : 'green';
+                ctx.fillRect(component.x, component.y, component.width, component.height);
+            });
         }
     </script>
 </body>

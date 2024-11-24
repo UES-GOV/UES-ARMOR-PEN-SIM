@@ -3,264 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tank Builder</title>
+    <title>Armor Pen Simulation</title>
     <style>
         body {
-            margin: 0;
             font-family: Arial, sans-serif;
-        }
-        #toolbar {
+            margin: 0;
             display: flex;
-            background-color: #333;
-            color: white;
-            padding: 5px;
-        }
-        #toolbar button {
-            margin: 0 5px;
-            padding: 5px 10px;
-            cursor: pointer;
-            background-color: #444;
-            color: white;
-            border: none;
-        }
-        #toolbar button:hover {
-            background-color: #555;
-        }
-        #canvas-container {
-            position: relative;
-            width: 100%;
-            height: calc(100vh - 40px);
-            background-color: #121212;
-            overflow: hidden;
+            flex-direction: column;
+            align-items: center;
         }
         canvas {
-            background-color: #121212;
-            border: 1px solid #333;
+            border: 1px solid #000;
+            background-color: #f5f5f5;
         }
-        .info-box {
-            position: absolute;
-            padding: 5px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            border-radius: 5px;
-            font-size: 12px;
-            pointer-events: none;
+        #toolbar {
+            margin: 10px;
         }
-        .light-mode {
-            background-color: #f4f4f4;
-            color: black;
-        }
-        .light-mode canvas {
-            background-color: #fff;
+        #toolbar button {
+            margin-right: 5px;
         }
     </style>
 </head>
 <body>
     <div id="toolbar">
-        <button id="drawArmor">Draw Armor</button>
-        <button id="addEngine">Add Engine</button>
-        <button id="addTurretRing">Add Turret Ring</button>
-        <button id="undo">Undo</button>
-        <button id="toggleMode">Light Mode</button>
+        <button id="toggleMode">Dark Mode</button>
+        <button id="addBlock">Add Block</button>
+        <button id="deleteBlock">Delete Selected Block</button>
     </div>
-    <div id="canvas-container">
-        <canvas id="canvas"></canvas>
-    </div>
+    <canvas id="armorCanvas" width="800" height="600"></canvas>
     <script>
-        const canvas = document.getElementById('canvas');
-        const container = document.getElementById('canvas-container');
-        const ctx = canvas.getContext('2d');
+        const canvas = document.getElementById("armorCanvas");
+        const ctx = canvas.getContext("2d");
 
-        // Set up canvas dimensions
-        canvas.width = container.offsetWidth;
-        canvas.height = container.offsetHeight;
-
-        // State variables
-        let mode = 'drawArmor'; // Current tool: drawArmor, addEngine, addTurretRing
-        let isDrawing = false;
-        let isResizing = false;
-        let isRotating = false;
+        let isDarkMode = false;
         let armorPieces = [];
-        let components = [];
-        let darkMode = true;
-        let currentBlock = null;
-        let resizingEdge = null;
-        let initialMouseAngle = 0; // Starting angle for rotation
-        let initialMouseX = 0;
-        let initialMouseY = 0;
+        let selectedBlock = null;
+        let isDragging = false;
+        let dragOffset = { x: 0, y: 0 };
 
-        // Event listeners
-        canvas.addEventListener('mousedown', startAction);
-        canvas.addEventListener('mousemove', handleMouseMove);
-        canvas.addEventListener('mouseup', stopAction);
-        canvas.addEventListener('mouseleave', stopAction);
+        // Add event listeners
+        canvas.addEventListener("mousedown", onMouseDown);
+        canvas.addEventListener("mousemove", onMouseMove);
+        canvas.addEventListener("mouseup", onMouseUp);
 
-        document.getElementById('drawArmor').addEventListener('click', () => mode = 'drawArmor');
-        document.getElementById('addEngine').addEventListener('click', () => mode = 'addEngine');
-        document.getElementById('addTurretRing').addEventListener('click', () => mode = 'addTurretRing');
-        document.getElementById('undo').addEventListener('click', undoLastAction);
-        document.getElementById('toggleMode').addEventListener('click', toggleMode);
+        document.getElementById("toggleMode").addEventListener("click", toggleDarkMode);
+        document.getElementById("addBlock").addEventListener("click", addBlock);
+        document.getElementById("deleteBlock").addEventListener("click", deleteSelectedBlock);
 
-        function startAction(e) {
-            const { x, y } = getMousePosition(e);
+        function toggleDarkMode() {
+            isDarkMode = !isDarkMode;
+            canvas.style.backgroundColor = isDarkMode ? "#333" : "#f5f5f5";
+        }
 
-            if (mode === 'drawArmor' && !currentBlock) {
-                // Only create a new block if no block is selected
-                armorPieces.push({ x, y, width: 0, height: 0, thickness: 0, angle: 0 });
-                currentBlock = armorPieces[armorPieces.length - 1];
-                isDrawing = true;
-            } else if (mode === 'addEngine' && !currentBlock) {
-                components.push({ type: 'engine', x: x - 50, y: y - 25, width: 100, height: 50 });
-                currentBlock = components[components.length - 1];
-            } else if (mode === 'addTurretRing' && !currentBlock) {
-                components.push({ type: 'turretRing', x: x - 25, y: y - 25, width: 50, height: 50 });
-                currentBlock = components[components.length - 1];
-            } else if ((mode === 'resize' || mode === 'rotate') && !currentBlock) {
-                // If not in drawing mode and no block selected, prevent spawning a new block
-                currentBlock = detectHoveredBlock(x, y);
-                if (currentBlock) {
-                    if (mode === 'rotate') {
-                        initialMouseX = x;
-                        initialMouseY = y;
-                        initialMouseAngle = currentBlock.angle; // Store the current angle to adjust from
-                        isRotating = true;
-                    }
-                    else if (mode === 'resize') {
-                        resizingEdge = getResizingEdge(x, y, currentBlock);
-                        isResizing = true;
-                    }
+        function addBlock() {
+            armorPieces.push({
+                x: canvas.width / 2 - 50,
+                y: canvas.height / 2 - 25,
+                width: 100,
+                height: 50,
+                angle: 0,
+                thickness: 50,
+                isHovered: false,
+            });
+            redrawCanvas();
+        }
+
+        function deleteSelectedBlock() {
+            if (selectedBlock) {
+                const index = armorPieces.indexOf(selectedBlock);
+                if (index !== -1) {
+                    armorPieces.splice(index, 1);
                 }
+                selectedBlock = null;
+                redrawCanvas();
             }
-            redrawCanvas();
         }
 
-        function handleMouseMove(e) {
-            const { x, y } = getMousePosition(e);
+        function onMouseDown(e) {
+            const { offsetX, offsetY } = e;
 
-            if (isDrawing && mode === 'drawArmor') {
-                const dx = x - currentBlock.x;
-                const dy = y - currentBlock.y;
-                currentBlock.width = dx;
-                currentBlock.height = dy;
-                currentBlock.thickness = Math.round(Math.sqrt(dx * dx + dy * dy) / 10); // Scale thickness
-            } else if (isResizing && currentBlock) {
-                resizeBlock(x, y);
-            } else if (isRotating && currentBlock) {
-                rotateBlock(x, y);
-            }
-            redrawCanvas();
-        }
-
-        function stopAction() {
-            isDrawing = false;
-            isResizing = false;
-            isRotating = false;
-            currentBlock = null;
-            resizingEdge = null;
-        }
-
-        function undoLastAction() {
-            if (mode === 'drawArmor' && armorPieces.length > 0) {
-                armorPieces.pop();
-            } else if ((mode === 'addEngine' || mode === 'addTurretRing') && components.length > 0) {
-                components.pop();
-            }
-            redrawCanvas();
-        }
-
-        function toggleMode() {
-            darkMode = !darkMode;
-            document.body.classList.toggle('light-mode', !darkMode);
-            redrawCanvas();
-        }
-
-        function getMousePosition(e) {
-            const rect = canvas.getBoundingClientRect();
-            return {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-            };
-        }
-
-        function detectHoveredBlock(x, y) {
-            // Detects if the mouse is hovering over a rotated block
-            for (let i = armorPieces.length - 1; i >= 0; i--) {
-                const block = armorPieces[i];
-                const cx = block.x + block.width / 2;
-                const cy = block.y + block.height / 2;
-                const dx = x - cx;
-                const dy = y - cy;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const angle = block.angle * Math.PI / 180;
-
-                // Rotate the mouse position to check if it intersects the rotated block
-                const rotatedX = Math.cos(angle) * dx + Math.sin(angle) * dy;
-                const rotatedY = -Math.sin(angle) * dx + Math.cos(angle) * dy;
-
-                if (rotatedX >= -block.width / 2 && rotatedX <= block.width / 2 &&
-                    rotatedY >= -block.height / 2 && rotatedY <= block.height / 2) {
-                    return block;
+            selectedBlock = null;
+            armorPieces.forEach(piece => {
+                if (isPointInsideBlock(offsetX, offsetY, piece)) {
+                    selectedBlock = piece;
+                    isDragging = true;
+                    dragOffset = { x: offsetX - piece.x, y: offsetY - piece.y };
                 }
-            }
-            return null;
+            });
         }
 
-        function getResizingEdge(x, y, block) {
-            const padding = 10; // distance to the edge for resizing
-            if (x >= block.x + block.width - padding && x <= block.x + block.width + padding) {
-                return 'right';
+        function onMouseMove(e) {
+            const { offsetX, offsetY } = e;
+
+            armorPieces.forEach(piece => {
+                piece.isHovered = isPointInsideBlock(offsetX, offsetY, piece);
+            });
+
+            if (isDragging && selectedBlock) {
+                selectedBlock.x = offsetX - dragOffset.x;
+                selectedBlock.y = offsetY - dragOffset.y;
             }
-            if (y >= block.y + block.height - padding && y <= block.y + block.height + padding) {
-                return 'bottom';
-            }
-            return null;
+
+            redrawCanvas();
         }
 
-        function rotateBlock(x, y) {
-            const centerX = currentBlock.x + currentBlock.width / 2;
-            const centerY = currentBlock.y + currentBlock.height / 2;
-            const dx = x - centerX;
-            const dy = y - centerY;
-            const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-            currentBlock.angle = angle + initialMouseAngle;
+        function onMouseUp() {
+            isDragging = false;
         }
 
-        function resizeBlock(x, y) {
-            if (resizingEdge === 'right') {
-                currentBlock.width = x - currentBlock.x;
-            } else if (resizingEdge === 'bottom') {
-                currentBlock.height = y - currentBlock.y;
-            }
+        function isPointInsideBlock(x, y, block) {
+            return (
+                x >= block.x &&
+                x <= block.x + block.width &&
+                y >= block.y &&
+                y <= block.y + block.height
+            );
         }
 
         function redrawCanvas() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawBlocks();
-            drawComponents();
+            armorPieces.forEach(drawBlock);
         }
 
-        function drawBlocks() {
-            armorPieces.forEach(piece => {
-                ctx.save();
-                ctx.translate(piece.x + piece.width / 2, piece.y + piece.height / 2);
-                ctx.rotate(piece.angle * Math.PI / 180);
-                ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-                ctx.fillRect(-piece.width / 2, -piece.height / 2, piece.width, piece.height);
-                ctx.restore();
+        function drawBlock(block) {
+            ctx.save();
+            ctx.translate(block.x + block.width / 2, block.y + block.height / 2);
+            ctx.rotate(block.angle * Math.PI / 180);
 
-                // Display angle and thickness info
-                ctx.fillStyle = 'white';
-                ctx.font = '12px Arial';
-                ctx.fillText(`Thickness: ${piece.thickness}mm`, piece.x + piece.width / 2, piece.y + piece.height / 2 - 10);
-                ctx.fillText(`${piece.angle.toFixed(1)}°`, piece.x + piece.width / 2, piece.y + piece.height / 2 + 10);
-            });
-        }
+            ctx.fillStyle = block.isHovered ? "rgba(0, 255, 0, 0.5)" : "rgba(255, 0, 0, 0.5)";
+            ctx.fillRect(-block.width / 2, -block.height / 2, block.width, block.height);
 
-        function drawComponents() {
-            components.forEach(component => {
-                ctx.fillStyle = component.type === 'engine' ? 'gray' : 'green';
-                ctx.fillRect(component.x, component.y, component.width, component.height);
-            });
+            // Display thickness and angle
+            ctx.fillStyle = "white";
+            ctx.font = "12px Arial";
+            ctx.fillText(`${block.thickness}mm`, -block.width / 2 + 5, -block.height / 2 + 15);
+            ctx.restore();
         }
     </script>
 </body>

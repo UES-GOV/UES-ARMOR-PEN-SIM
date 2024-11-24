@@ -3,77 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tank Armor Visualization</title>
+    <title>Tank Armor Penetration Simulator</title>
     <style>
         body {
             font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
         }
-        .armor-label {
-            fill: darkblue;
-            font-size: 12px;
-            text-anchor: middle;
+        .container {
+            position: relative;
+            width: 600px;
+            height: 400px;
+            margin: 0 auto;
+            background-image: url('your_tank_blueprint_image.png');
+            background-size: cover;
+            background-position: center;
+            border: 2px solid black;
         }
-        .tooltip {
-            display: none;
+        .penetration-arrow {
             position: absolute;
-            background: #333;
-            color: #fff;
-            padding: 5px;
-            border-radius: 4px;
-            font-size: 12px;
+            width: 40px;
+            height: 2px;
+            background-color: red;
+            transform-origin: left center;
+            cursor: pointer;
         }
+        .info-box {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: white;
+            border: 1px solid #ccc;
+            width: 300px;
+        }
+        .slider {
+            width: 100%;
+        }
+        .color-code {
+            display: flex;
+            margin-top: 10px;
+        }
+        .color-code div {
+            width: 50px;
+            height: 50px;
+            margin-right: 10px;
+        }
+        .color-code div.gray { background-color: gray; }
+        .color-code div.green { background-color: green; }
+        .color-code div.orange { background-color: orange; }
+        .color-code div.brown { background-color: brown; }
+        .color-code div.red { background-color: red; }
+        .color-code div.blue { background-color: blue; }
+        .color-code div.yellow { background-color: yellow; }
     </style>
 </head>
 <body>
-    <h1>Tank Armor Visualization</h1>
-    <div id="tooltip" class="tooltip"></div>
-    <svg width="600" height="400" style="border: 1px solid black;">
-        <!-- Tank outline -->
-        <rect x="100" y="100" width="400" height="200" fill="none" stroke="black" stroke-width="3"></rect>
 
-        <!-- Front armor -->
-        <line id="front" x1="200" y1="100" x2="400" y2="100" stroke="blue" stroke-width="4"></line>
-        <text x="300" y="90" class="armor-label">Front</text>
+    <div class="container" id="tank-container">
+        <div id="penetration-arrow" class="penetration-arrow"></div>
+    </div>
 
-        <!-- Side armor -->
-        <line id="side" x1="100" y1="100" x2="100" y2="300" stroke="blue" stroke-width="4"></line>
-        <text x="80" y="200" class="armor-label">Side</text>
+    <div class="info-box">
+        <h3>Penetration Test</h3>
+        <label for="penetration-angle">Arrow Angle (degrees):</label>
+        <input type="range" id="penetration-angle" class="slider" min="0" max="180" step="1" value="0">
+        <p>Angle: <span id="angle-value">0</span>°</p>
+        <p><strong>Result: </strong><span id="penetration-result">Move the arrow to a target</span></p>
+    </div>
 
-        <!-- Turret armor -->
-        <line id="turret" x1="200" y1="80" x2="400" y2="80" stroke="blue" stroke-width="4"></line>
-        <text x="300" y="70" class="armor-label">Turret</text>
-    </svg>
+    <div class="color-code">
+        <div class="gray"></div>
+        <div class="green"></div>
+        <div class="orange"></div>
+        <div class="brown"></div>
+        <div class="red"></div>
+        <div class="blue"></div>
+        <div class="yellow"></div>
+    </div>
 
     <script>
-        // Armor data
-        const armorPlates = [
-            { id: "front", name: "Front", baseThickness: 120, angle: 60 },
-            { id: "side", name: "Side", baseThickness: 80, angle: 20 },
-            { id: "turret", name: "Turret Front", baseThickness: 150, angle: 45 },
-        ];
+        const arrow = document.getElementById('penetration-arrow');
+        const tankContainer = document.getElementById('tank-container');
+        const angleSlider = document.getElementById('penetration-angle');
+        const angleValue = document.getElementById('angle-value');
+        const penetrationResult = document.getElementById('penetration-result');
+        
+        let startX, startY;
 
-        // Tooltip for showing armor details
-        const tooltip = document.getElementById("tooltip");
+        // Initial position and angle of the arrow
+        let arrowAngle = 0;
+        arrow.style.transform = `rotate(${arrowAngle}deg)`;
 
-        // Calculate effective thickness
-        function effectiveThickness(base, angle) {
-            return (base / Math.cos((angle * Math.PI) / 180)).toFixed(1);
-        }
-
-        // Add interactivity to armor lines
-        armorPlates.forEach((plate) => {
-            const element = document.getElementById(plate.id);
-            element.addEventListener("mouseover", (e) => {
-                const effective = effectiveThickness(plate.baseThickness, plate.angle);
-                tooltip.style.display = "block";
-                tooltip.innerText = `${plate.name} Armor\nBase: ${plate.baseThickness}mm\nEffective: ${effective}mm\nAngle: ${plate.angle}°`;
-                tooltip.style.left = e.pageX + 10 + "px";
-                tooltip.style.top = e.pageY + 10 + "px";
-            });
-            element.addEventListener("mouseout", () => {
-                tooltip.style.display = "none";
+        // Make the arrow draggable
+        tankContainer.addEventListener('mousedown', (e) => {
+            startX = e.clientX - arrow.offsetLeft;
+            startY = e.clientY - arrow.offsetTop;
+            tankContainer.addEventListener('mousemove', moveArrow);
+            tankContainer.addEventListener('mouseup', () => {
+                tankContainer.removeEventListener('mousemove', moveArrow);
+                checkPenetration();
             });
         });
+
+        function moveArrow(e) {
+            const x = e.clientX - startX;
+            const y = e.clientY - startY;
+            arrow.style.left = `${x}px`;
+            arrow.style.top = `${y}px`;
+        }
+
+        // Handle angle changes via slider
+        angleSlider.addEventListener('input', () => {
+            arrowAngle = angleSlider.value;
+            angleValue.textContent = arrowAngle;
+            arrow.style.transform = `rotate(${arrowAngle}deg)`;
+            checkPenetration();
+        });
+
+        // Check if the shot penetrates the armor
+        function checkPenetration() {
+            const x = arrow.offsetLeft;
+            const y = arrow.offsetTop;
+
+            // Simple collision check based on tank blueprint
+            // Here you can integrate more sophisticated checks based on the coordinates
+            if (x >= 50 && x <= 200 && y >= 100 && y <= 300) {
+                penetrationResult.textContent = 'Penetration likely in turret area!';
+            } else if (x >= 200 && x <= 400 && y >= 50 && y <= 200) {
+                penetrationResult.textContent = 'Penetration possible in hull area!';
+            } else {
+                penetrationResult.textContent = 'No penetration detected.';
+            }
+        }
     </script>
+
 </body>
 </html>

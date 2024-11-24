@@ -1,55 +1,79 @@
-/
-├── index.html
-├── style.css (optional, if external styles are used)
-├── script.js (optional, if external scripts are used)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tank Armor Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .armor-label {
+            fill: darkblue;
+            font-size: 12px;
+            text-anchor: middle;
+        }
+        .tooltip {
+            display: none;
+            position: absolute;
+            background: #333;
+            color: #fff;
+            padding: 5px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tank Armor Visualization</h1>
+    <div id="tooltip" class="tooltip"></div>
+    <svg width="600" height="400" style="border: 1px solid black;">
+        <!-- Tank outline -->
+        <rect x="100" y="100" width="400" height="200" fill="none" stroke="black" stroke-width="3"></rect>
 
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import numpy as np
+        <!-- Front armor -->
+        <line id="front" x1="200" y1="100" x2="400" y2="100" stroke="blue" stroke-width="4"></line>
+        <text x="300" y="90" class="armor-label">Front</text>
 
-# Function to compute effective armor thickness based on angle
-def effective_thickness(base_thickness, angle):
-    return base_thickness / np.cos(np.radians(angle))
+        <!-- Side armor -->
+        <line id="side" x1="100" y1="100" x2="100" y2="300" stroke="blue" stroke-width="4"></line>
+        <text x="80" y="200" class="armor-label">Side</text>
 
-# Tank armor configuration
-armor_plates = [
-    {"name": "Front", "base_thickness": 120, "angle": 60, "coords": (1, 4, 3, 4)},
-    {"name": "Side", "base_thickness": 80, "angle": 20, "coords": (0, 2, 0, 4)},
-    {"name": "Turret Front", "base_thickness": 150, "angle": 45, "coords": (1, 5, 3, 5)},
-]
+        <!-- Turret armor -->
+        <line id="turret" x1="200" y1="80" x2="400" y2="80" stroke="blue" stroke-width="4"></line>
+        <text x="300" y="70" class="armor-label">Turret</text>
+    </svg>
 
-# Plot settings
-fig, ax = plt.subplots(figsize=(8, 6))
-ax.set_xlim(-1, 5)
-ax.set_ylim(0, 6)
-ax.set_aspect('equal')
-ax.set_title("Tank Armor Layout and Penetration Visualization", fontsize=14)
-ax.set_xlabel("X Coordinate")
-ax.set_ylabel("Y Coordinate")
+    <script>
+        // Armor data
+        const armorPlates = [
+            { id: "front", name: "Front", baseThickness: 120, angle: 60 },
+            { id: "side", name: "Side", baseThickness: 80, angle: 20 },
+            { id: "turret", name: "Turret Front", baseThickness: 150, angle: 45 },
+        ];
 
-# Draw tank outline
-tank_outline = patches.Rectangle((0, 2), 4, 3, edgecolor='black', facecolor='none', linewidth=2)
-ax.add_patch(tank_outline)
+        // Tooltip for showing armor details
+        const tooltip = document.getElementById("tooltip");
 
-# Draw and annotate armor plates
-for plate in armor_plates:
-    x_start, y_start, x_end, y_end = plate["coords"]
-    effective = effective_thickness(plate["base_thickness"], plate["angle"])
-    
-    # Draw armor plate
-    ax.plot([x_start, x_end], [y_start, y_end], color='blue', linewidth=3, label=f'{plate["name"]} Armor')
-    
-    # Annotate armor plate details
-    text_x = (x_start + x_end) / 2
-    text_y = (y_start + y_end) / 2
-    annotation = (f"{plate['name']}\n"
-                  f"Base: {plate['base_thickness']}mm\n"
-                  f"Effective: {effective:.1f}mm\n"
-                  f"Angle: {plate['angle']}°")
-    ax.text(text_x, text_y, annotation, fontsize=9, ha='center', va='center', color='darkblue')
+        // Calculate effective thickness
+        function effectiveThickness(base, angle) {
+            return (base / Math.cos((angle * Math.PI) / 180)).toFixed(1);
+        }
 
-# Add legend
-ax.legend(loc='lower right')
-
-# Display the plot
-plt.show()
+        // Add interactivity to armor lines
+        armorPlates.forEach((plate) => {
+            const element = document.getElementById(plate.id);
+            element.addEventListener("mouseover", (e) => {
+                const effective = effectiveThickness(plate.baseThickness, plate.angle);
+                tooltip.style.display = "block";
+                tooltip.innerText = `${plate.name} Armor\nBase: ${plate.baseThickness}mm\nEffective: ${effective}mm\nAngle: ${plate.angle}°`;
+                tooltip.style.left = e.pageX + 10 + "px";
+                tooltip.style.top = e.pageY + 10 + "px";
+            });
+            element.addEventListener("mouseout", () => {
+                tooltip.style.display = "none";
+            });
+        });
+    </script>
+</body>
+</html>

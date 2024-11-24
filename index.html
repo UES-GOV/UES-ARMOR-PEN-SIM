@@ -3,138 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tank Armor Penetration Simulator</title>
+    <title>UES Armor Penetration Simulator</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            padding: 20px;
+        #tank-container {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
         }
-        .container {
-            position: relative;
-            width: 600px;
-            height: 400px;
-            margin: 0 auto;
-            background-image: url('your_tank_blueprint_image.png');
-            background-size: cover;
-            background-position: center;
-            border: 2px solid black;
-        }
-        .penetration-arrow {
-            position: absolute;
-            width: 40px;
-            height: 2px;
-            background-color: red;
-            transform-origin: left center;
-            cursor: pointer;
-        }
-        .info-box {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: white;
+        #build-menu {
             border: 1px solid #ccc;
-            width: 300px;
+            padding: 10px;
+            height: 500px;
         }
-        .slider {
-            width: 100%;
+        #tank-canvas {
+            position: relative;
+            width: 500px;
+            height: 500px;
+            background-color: #ddd;
+            border: 1px solid #333;
         }
-        .color-code {
-            display: flex;
-            margin-top: 10px;
-        }
-        .color-code div {
+        .component {
+            position: absolute;
             width: 50px;
             height: 50px;
-            margin-right: 10px;
+            background-color: #444;
+            cursor: pointer;
         }
-        .color-code div.gray { background-color: gray; }
-        .color-code div.green { background-color: green; }
-        .color-code div.orange { background-color: orange; }
-        .color-code div.brown { background-color: brown; }
-        .color-code div.red { background-color: red; }
-        .color-code div.blue { background-color: blue; }
-        .color-code div.yellow { background-color: yellow; }
+        .selected {
+            background-color: yellow;
+        }
     </style>
 </head>
 <body>
+    <div id="tank-container">
+        <div id="build-menu">
+            <h3>Tank Components</h3>
+            <button onclick="addComponent('armor')">Add Armor</button>
+            <button onclick="addComponent('cannon')">Add Cannon</button>
+            <button onclick="addComponent('seat')">Add Seat</button>
+            <!-- You can add more buttons for other components -->
+        </div>
 
-    <div class="container" id="tank-container">
-        <div id="penetration-arrow" class="penetration-arrow"></div>
-    </div>
-
-    <div class="info-box">
-        <h3>Penetration Test</h3>
-        <label for="penetration-angle">Arrow Angle (degrees):</label>
-        <input type="range" id="penetration-angle" class="slider" min="0" max="180" step="1" value="0">
-        <p>Angle: <span id="angle-value">0</span>°</p>
-        <p><strong>Result: </strong><span id="penetration-result">Move the arrow to a target</span></p>
-    </div>
-
-    <div class="color-code">
-        <div class="gray"></div>
-        <div class="green"></div>
-        <div class="orange"></div>
-        <div class="brown"></div>
-        <div class="red"></div>
-        <div class="blue"></div>
-        <div class="yellow"></div>
+        <div id="tank-canvas" onclick="placeComponent(event)">
+            <!-- Tank components will appear here -->
+        </div>
     </div>
 
     <script>
-        const arrow = document.getElementById('penetration-arrow');
-        const tankContainer = document.getElementById('tank-container');
-        const angleSlider = document.getElementById('penetration-angle');
-        const angleValue = document.getElementById('angle-value');
-        const penetrationResult = document.getElementById('penetration-result');
-        
-        let startX, startY;
+        let selectedComponent = null;
 
-        // Initial position and angle of the arrow
-        let arrowAngle = 0;
-        arrow.style.transform = `rotate(${arrowAngle}deg)`;
-
-        // Make the arrow draggable
-        tankContainer.addEventListener('mousedown', (e) => {
-            startX = e.clientX - arrow.offsetLeft;
-            startY = e.clientY - arrow.offsetTop;
-            tankContainer.addEventListener('mousemove', moveArrow);
-            tankContainer.addEventListener('mouseup', () => {
-                tankContainer.removeEventListener('mousemove', moveArrow);
-                checkPenetration();
-            });
-        });
-
-        function moveArrow(e) {
-            const x = e.clientX - startX;
-            const y = e.clientY - startY;
-            arrow.style.left = `${x}px`;
-            arrow.style.top = `${y}px`;
+        function addComponent(type) {
+            selectedComponent = type;
+            alert(`Selected ${type}`);
         }
 
-        // Handle angle changes via slider
-        angleSlider.addEventListener('input', () => {
-            arrowAngle = angleSlider.value;
-            angleValue.textContent = arrowAngle;
-            arrow.style.transform = `rotate(${arrowAngle}deg)`;
-            checkPenetration();
-        });
+        function placeComponent(event) {
+            if (!selectedComponent) return;
 
-        // Check if the shot penetrates the armor
-        function checkPenetration() {
-            const x = arrow.offsetLeft;
-            const y = arrow.offsetTop;
+            const x = event.offsetX;
+            const y = event.offsetY;
+            const component = document.createElement('div');
+            component.classList.add('component');
+            component.style.left = `${x - 25}px`;  // Center the component on the click
+            component.style.top = `${y - 25}px`;
 
-            // Simple collision check based on tank blueprint
-            // Here you can integrate more sophisticated checks based on the coordinates
-            if (x >= 50 && x <= 200 && y >= 100 && y <= 300) {
-                penetrationResult.textContent = 'Penetration likely in turret area!';
-            } else if (x >= 200 && x <= 400 && y >= 50 && y <= 200) {
-                penetrationResult.textContent = 'Penetration possible in hull area!';
-            } else {
-                penetrationResult.textContent = 'No penetration detected.';
+            // Set component colors based on the type
+            if (selectedComponent === 'armor') {
+                component.style.backgroundColor = 'blue';
+            } else if (selectedComponent === 'cannon') {
+                component.style.backgroundColor = 'red';
+            } else if (selectedComponent === 'seat') {
+                component.style.backgroundColor = 'green';
             }
+
+            document.getElementById('tank-canvas').appendChild(component);
+            selectedComponent = null;  // Deselect after placing
         }
     </script>
-
 </body>
 </html>

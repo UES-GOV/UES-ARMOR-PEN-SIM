@@ -1,0 +1,50 @@
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import numpy as np
+
+# Function to compute effective armor thickness based on angle
+def effective_thickness(base_thickness, angle):
+    return base_thickness / np.cos(np.radians(angle))
+
+# Tank armor configuration
+armor_plates = [
+    {"name": "Front", "base_thickness": 120, "angle": 60, "coords": (1, 4, 3, 4)},
+    {"name": "Side", "base_thickness": 80, "angle": 20, "coords": (0, 2, 0, 4)},
+    {"name": "Turret Front", "base_thickness": 150, "angle": 45, "coords": (1, 5, 3, 5)},
+]
+
+# Plot settings
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.set_xlim(-1, 5)
+ax.set_ylim(0, 6)
+ax.set_aspect('equal')
+ax.set_title("Tank Armor Layout and Penetration Visualization", fontsize=14)
+ax.set_xlabel("X Coordinate")
+ax.set_ylabel("Y Coordinate")
+
+# Draw tank outline
+tank_outline = patches.Rectangle((0, 2), 4, 3, edgecolor='black', facecolor='none', linewidth=2)
+ax.add_patch(tank_outline)
+
+# Draw and annotate armor plates
+for plate in armor_plates:
+    x_start, y_start, x_end, y_end = plate["coords"]
+    effective = effective_thickness(plate["base_thickness"], plate["angle"])
+    
+    # Draw armor plate
+    ax.plot([x_start, x_end], [y_start, y_end], color='blue', linewidth=3, label=f'{plate["name"]} Armor')
+    
+    # Annotate armor plate details
+    text_x = (x_start + x_end) / 2
+    text_y = (y_start + y_end) / 2
+    annotation = (f"{plate['name']}\n"
+                  f"Base: {plate['base_thickness']}mm\n"
+                  f"Effective: {effective:.1f}mm\n"
+                  f"Angle: {plate['angle']}°")
+    ax.text(text_x, text_y, annotation, fontsize=9, ha='center', va='center', color='darkblue')
+
+# Add legend
+ax.legend(loc='lower right')
+
+# Display the plot
+plt.show()
